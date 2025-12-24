@@ -1,46 +1,38 @@
-# BeyondChats Technical Assignment
+# BeyondChats Backend – Laravel Scraper & API
 
 ## Overview
 
-This repository contains a monorepo implementation of the BeyondChats technical assignment.  
-The project focuses on building a reliable backend scraping pipeline to collect blog articles from BeyondChats, with an architecture designed for extensibility (LLM enrichment, frontend consumption).
+This directory contains the **Laravel backend implementation** for the BeyondChats technical assignment.
+
+The backend focuses on building a **reliable, production-safe scraping pipeline** to collect blog articles from the BeyondChats website and store them in a structured database, with future extensibility for APIs, LLM enrichment, and frontend consumption.
 
 The implementation emphasizes:
-- Clean architecture
-- Idempotent data ingestion
-- Real-world edge case handling
-- Production-safe design choices
+
+- Clean architecture  
+- Idempotent data ingestion  
+- Real-world edge case handling  
+- Production-safe design choices  
 
 ---
 
-## Repository Structure
+## Tech Stack
 
-beyondchats-assignment/
-│
-├── backend-laravel/ # Laravel backend (scraping + APIs)
-├── llm-node/ # Node.js service for future LLM enrichment
-├── frontend-react/ # React frontend (article consumption)
-└── README.md
-
-yaml
-Copy code
+- Laravel 10  
+- PHP 8.1+  
+- SQLite (for simplicity and portability)  
+- Symfony HttpClient  
+- Symfony DomCrawler  
 
 ---
 
-## Backend (Laravel)
+## Why SQLite?
 
-### Tech Stack
-- Laravel 10
-- PHP 8.1+
-- SQLite (for simplicity & portability)
-- Symfony HttpClient
-- Symfony DomCrawler
+SQLite is used intentionally for this assignment because:
 
-### Why SQLite?
-- Zero configuration
-- Portable across environments
-- Ideal for assignments & demos
-- Easy reviewer setup
+- Zero configuration required  
+- Portable across environments  
+- Ideal for demos and assignments  
+- Enables fast and easy reviewer setup  
 
 ---
 
@@ -48,141 +40,159 @@ Copy code
 
 ### Artisan Command
 
-The scraper is implemented as a Laravel Artisan command:
+The scraper is implemented as a **Laravel Artisan command**:
 
 ```bash
 php artisan scrape:beyondchats
-What It Does
-Fetches the BeyondChats blog listing page
+```
 
-Extracts blog article URLs
+---
 
-Normalizes relative URLs to absolute URLs
+### What the Scraper Does
 
-Selects the 5 oldest articles
+- Fetches the BeyondChats blog listing page  
+- Extracts individual blog article URLs  
+- Normalizes relative URLs into absolute URLs  
+- Selects the **oldest articles**  
+- Scrapes the following fields:
+  - Title  
+  - Content  
+  - Source URL  
+- Stores articles in the database  
 
-Scrapes:
+---
 
-Title
+## Key Engineering Decisions
 
-Content
+### 1. Relative URL Normalization
 
-Source URL
+Blog links are provided as relative paths (e.g. `/blogs/article-name`).
 
-Stores articles in the database
+These are normalized into absolute URLs using a base URL:
 
-Key Engineering Decisions
-1. Relative URL Normalization
-Blog links are relative (e.g. /blogs/article-name).
-These are normalized to absolute URLs using a base URL:
-
-arduino
-Copy code
+```text
 https://beyondchats.com
-This avoids HTTP client errors and ensures consistent scraping.
+```
 
-2. Edge Case Handling
-The blog listing page (/blogs/) itself is excluded to avoid parsing errors.
+This avoids HTTP client errors and ensures consistent scraping behavior.
 
-php
-Copy code
+---
+
+### 2. Edge Case Handling
+
+The blog listing page itself (`/blogs/`) is explicitly excluded to avoid parsing errors.
+
+```php
 $link !== '/blogs/'
+```
+
 This prevents invalid content extraction and noisy logs.
 
-3. Idempotent Scraping (Critical)
-Before inserting an article, the scraper checks:
+---
 
-php
-Copy code
+### 3. Idempotent Scraping (Critical)
+
+Before inserting an article, the scraper checks whether it already exists:
+
+```php
 Article::where('source_url', $url)->exists()
-This ensures:
+```
 
-No duplicate records
+This guarantees:
 
-Safe re-runs
+- No duplicate records  
+- Safe re-runs of the scraper  
+- Cron-job compatibility  
 
-Cron-job compatibility
+---
 
-4. Production-Safe Design
-Graceful skips instead of crashes
+### 4. Production-Safe Design
 
-Clear console logs
+- Graceful skips instead of crashes  
+- Clear console logging  
+- Deterministic behavior on every run  
 
-Deterministic behavior on every run
+---
 
-Database Schema
-articles table
-id
+## Database Schema
 
-title
+The scraper stores data in the `articles` table with the following fields:
 
-slug
+- `id`  
+- `title`  
+- `slug`  
+- `content`  
+- `source_url` (unique)  
+- `type`  
+- `created_at`  
+- `updated_at`  
 
-content
+---
 
-source_url (unique)
+## How to Run (Reviewer Friendly)
 
-type
+### Requirements
 
-created_at
+- PHP 8.1+  
+- Composer  
+- Git  
+- Node.js (optional, for later phases)  
 
-updated_at
+---
 
-How to Run (Reviewer Friendly)
-Requirements
-PHP 8.1+
+### Setup Backend
 
-Composer
-
-Node.js (optional, for later phases)
-
-Git
-
-Setup Backend
-bash
-Copy code
+```bash
 cd backend-laravel
 composer install
 cp .env.example .env
 php artisan key:generate
 php artisan migrate
-Run Scraper
-bash
-Copy code
+```
+
+---
+
+### Run Scraper
+
+```bash
 php artisan scrape:beyondchats
+```
+
 Re-running the command will safely skip already-scraped articles.
 
-Assumptions & Tradeoffs
-Assumptions
-Blog HTML structure remains consistent
+---
 
-First <h1> represents article title
+## Assumptions & Tradeoffs
 
-<article> tag contains main content
+### Assumptions
 
-Tradeoffs
-SQLite chosen over MySQL for simplicity
+- Blog HTML structure remains consistent  
+- First `<h1>` represents the article title  
+- `<article>` tag contains the main content  
 
-No pagination implemented (scope-limited to 5 articles)
+---
 
-No retry queue (out of assignment scope)
+### Tradeoffs
 
-Future Improvements
-Add REST APIs with pagination & filters
+- SQLite chosen over MySQL for simplicity  
+- Pagination limited to oldest articles (scope-limited)  
+- Retry queues excluded (out of assignment scope)  
 
-Schedule scraper via Laravel scheduler
+---
 
-Add Node.js LLM enrichment (summaries, tags)
+## Future Improvements
 
-Full React frontend for article browsing
+- Add REST APIs with pagination and filters  
+- Schedule scraper via Laravel Scheduler  
+- Integrate Node.js LLM enrichment (summaries, tags)  
+- Implement full React frontend for article browsing  
+- Add caching and rate limiting  
+- Write unit tests for scraper logic  
 
-Caching & rate limiting
+---
 
-Unit tests for scraper logic
+## Conclusion
 
-Conclusion
-This implementation prioritizes correctness, robustness, and clarity over unnecessary complexity.
-The scraper is safe to run repeatedly, handles real-world edge cases, and is designed for extension into a full content pipeline.
+This backend implementation prioritizes **correctness, robustness, and clarity** over unnecessary complexity.
 
-yaml
-Copy code
+The scraper is safe to run repeatedly, handles real-world edge cases, and is designed to scale into a full content pipeline with APIs, LLM enrichment, and frontend consumption.
